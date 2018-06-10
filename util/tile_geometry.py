@@ -14,9 +14,7 @@ def est_area(tile_list):
         # tile area estimate
         # calculated with 1 has a z12 tile,
         # so a z11 tile is 4, z10 16, z9 64
-        tile_area += (tile.z - 11) ** 4
-
-    print tile_area
+        tile_area += 4 ** (12 - tile.z) 
 
     return tile_area
 

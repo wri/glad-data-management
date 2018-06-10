@@ -26,7 +26,10 @@ def main():
     # connect to vector tiles / sqlite3 database
     conn, cursor = sqlite_util.connect('sa_all.mbtiles')
 
-    if tile_geometry.est_area(intersect_list) / tile_geometry.est_area(within_list) < 0.01:
+    print tile_geometry.est_area(intersect_list)
+    print tile_geometry.est_area(within_list)
+
+    if tile_geometry.est_area(intersect_list) / tile_geometry.est_area(within_list) <= 0.05:
 
         print 'estimated tile intersect area is <1% of within area, ' \
               'not doing any actual geometry calculations'
