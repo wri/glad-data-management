@@ -6,6 +6,7 @@ from collections import Counter
 import csv
 import multiprocessing as mp
 
+import numpy as np
 import mercantile
 import vector_tile_base
 
@@ -22,13 +23,19 @@ def main():
     conn = sqlite3.connect(args.mbtiles_db)
     cursor = conn.cursor()
 
+    print 'starting sql read'
     sql = 'SELECT zoom_level as z, tile_row as y, tile_column as x FROM tiles' 
     cursor.execute(sql)
-    l = [cursor.fetchall()]
+    rows = np.array(cursor.fetchall())
 
+    # divide into equal chunks based on number of processors
     cpu_count = mp.cpu_count() - 2
-    mapper = multiprocessing_mapreduce.SimpleMapReduce(map_tile_to_parent, combine_alert_stats, 1)
+    l = np.array_split(rows, cpu_count)
+
+    mapper = multiprocessing_mapreduce.SimpleMapReduce(map_tile_to_parent, combine_alert_stats, cpu_count)
     results = mapper(l)
+
+    print 'writing results to output.csv'
 
     with open('output.csv', 'w') as dst:
         csv_writer = csv.writer(dst)
@@ -52,6 +59,7 @@ def map_tile_to_parent(input_tile_list):
 
     for input_tile in input_tile_list:
 
+        print mp.current_process().name, 'querying db for', input_tile
         z, y, x = input_tile
 
         sql = 'SELECT tile_data FROM tiles WHERE zoom_level = {} AND tile_row = {} and tile_column = {}'.format(z, y, x)
@@ -89,8 +97,9 @@ def map_tile_to_parent(input_tile_list):
     
 
 def combine_alert_stats(item):
-    tile_id, dict_list = item
 
+    tile_id, dict_list = item
+    print mp.current_process().name, 'combining tile_id',  tile_id
 
     # https://stackoverflow.com/a/11290471/4355916
     return tile_id, sum((Counter(dict(x)) for x in dict_list), Counter())
