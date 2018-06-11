@@ -14,8 +14,7 @@ def insert_intersect_table(cursor, tile_list):
         # need to convert each XYZ tile to TMS
         # vector tiles are indexed by TMS for some reason
         # https://gist.github.com/tmcw/4954720
-        # hardcode zoom level 12 - only zoom we're working with
-        tms_y = (2 ** 12) - tile.y - 1
+        tms_y = (2 ** tile.z) - tile.y - 1
         row = [tile.x, tms_y]
 
         # append to row list for batch insert later

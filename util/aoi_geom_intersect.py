@@ -15,7 +15,7 @@ def count_points_in_poly(geom, vt_rows):
     #    aoi_geom = shape(aoi['features'][0]['geometry'])
 
     # builds dictionary of (tile_x, tile_y) : geojson
-    # for all the z12 tiles that split the AOI
+    # for all the z17 tiles that split the AOI
     #tile_dict = build_intersect_tile_dict() 
 
     for row in vt_rows:

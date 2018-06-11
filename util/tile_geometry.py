@@ -12,9 +12,9 @@ def est_area(tile_list):
     for tile in tile_list:
 
         # tile area estimate
-        # calculated with 1 has a z12 tile,
+        # calculated with 1 has a z16 tile,
         # so a z11 tile is 4, z10 16, z9 64
-        tile_area += 4 ** (12 - tile.z) 
+        tile_area += 4 ** (16 - tile.z) 
 
     return tile_area
 
@@ -22,8 +22,8 @@ def est_area(tile_list):
 def process_tile(tile_list, aoi):
     # main function to compare a list of tiles to an input geometry
     # will eventually return a list of tiles completely within the aoi (all zoom levels possible)
-    # and tiles that intersect the aoi (must be z12 because that's as low as we go)
-    # we could keep subdividing to higher zooms, but our data is z12 and that's all we care about
+    # and tiles that intersect the aoi (must be z16 because that's as low as we go)
+    # we could keep subdividing to higher zooms, but our data is z16 and that's all we care about
 
     within_list = []
     intersect_list = []
@@ -39,9 +39,9 @@ def process_tile(tile_list, aoi):
 
         elif tile_geom.intersects(aoi):
 
-            # if it intersects and is < z12, subdivide it and start the 
+            # if it intersects and is < z16, subdivide it and start the 
             # process again
-            if t.z < 12:
+            if t.z < 16:
 
                 # find the four children of this tile and check them for within/intersect/outside-ness
                 tile_children = mercantile.children(t)
@@ -51,7 +51,7 @@ def process_tile(tile_list, aoi):
                 within_list.extend(new_within_list)
                 intersect_list.extend(new_intersect_list)
 
-            # if it intersects and is at z12, add it to our intersect list
+            # if it intersects and is at z16, add it to our intersect list
             else:
                 intersect_list.append(t)
 
