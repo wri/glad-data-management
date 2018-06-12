@@ -39,7 +39,7 @@ def main():
 
     with open('output.csv', 'w') as dst:
         csv_writer = csv.writer(dst)
-        csv_writer.writerow(['z', 'y', 'x', 'alert_date', 'alert_count'])
+        csv_writer.writerow(['x', 'y', 'z', 'alert_date', 'alert_count'])
 
         for row in results:
             tile_tuple, date_dict = row

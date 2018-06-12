@@ -1,0 +1,2 @@
+git+https://github.com/mapbox/vector-tile-base
+mercantile==1.0.4
