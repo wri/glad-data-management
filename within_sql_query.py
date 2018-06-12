@@ -27,7 +27,7 @@ def main():
     within_list, intersect_list = tile_geometry.build_tile_lists(geom, max_z, args.debug)
 
     # connect to vector tiles / sqlite3 database
-    conn, cursor = sqlite_util.connect('sa_all.mbtiles')
+    conn, cursor = sqlite_util.connect('data_no_geom.mbtiles')
 
     intersect_area = tile_geometry.est_area(intersect_list, max_z)
     within_area = tile_geometry.est_area(within_list, max_z)
@@ -37,24 +37,21 @@ def main():
 
     if area_ratio <= 0.05:
 
-        print 'estimated tile intersect area is <1% of within area, ' \
-              'not doing any actual geometry calculations'
-
-    # at some point there will be another option here- could send
-    # directly to the s3/lambda endpoint if it's small enough
-    # this is especially helpful for complex small geoms like the wdpa example
-
-    else:
+        print 'Estimated tile intersect area is <5% of within area!\n ' \
+              'Starting to query the database based on date values.'
 
         # insert intersect list into mbtiles database as tiles_aoi
         # (this will be done in sqlite_util.py - remember to convert y --> tms_y)
-        sqlite_util.insert_intersect_table(cursor, intersect_list)
+        sqlite_util.insert_intersect_table(cursor, within_list, False)
 
-        # grab all vector tile rows in this list
-        vt_rows = sqlite_util.select_intersected_tiles(cursor)
+        # query the database for summarized results
+        #rows = sqlite_util.select_within_tiles(cursor)
+        #print rows[0]
+        print 'done'
 
-        # for every row, and for every point in that tile, compare to aoi geom
-        aoi_geom_intersect.count_points_in_poly(geom, vt_rows)
+    else:
+        raise ValueError('geometry has >5% of area in intersecting tiles')
+
 
 
 if __name__ == '__main__':
