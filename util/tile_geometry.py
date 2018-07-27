@@ -1,23 +1,64 @@
 import os
+from functools import partial
 
 import fiona
 import mercantile
 from shapely.geometry import shape 
+import pyproj
+from shapely.geometry import shape
+from shapely.ops import transform
 
 
-def est_area(tile_list, max_z):
+def est_area(tile_list, max_z, debug):
 
     tile_area = 0.0
 
+    z_dict = {}
+
     for tile in tile_list:
 
-        # tile area estimate
-        # calculated with a value of 1 for the max_z tile 
-        # so if max_z is 12, z12 tile is 1,
-        # z11 tile is 4, z10 16, z9 64
-        tile_area += 4 ** (max_z - tile.z) 
+        if debug:
+
+            # keep track of the number of tiles at each zoom
+            try:
+                z_dict[tile.z] += 1
+            except KeyError:
+                z_dict[tile.z] = 1
+
+            # if we're testing, compute actual area if we're testing
+            tile_area += calc_tile_area(tile)
+
+        else:
+            # tile area estimate
+            # calculated with a value of 1 for the max_z tile 
+            # so if max_z is 12, z12 tile is 1,
+            # z11 tile is 4, z10 16, z9 64
+            tile_area += 4 ** (max_z - tile.z) 
+
+    if debug:
+        print z_dict
 
     return tile_area
+
+
+def calc_tile_area(tile):
+
+    # get geojson bounds from mercantile, then to geom
+    geom = shape(mercantile.feature(tile)['geometry'])
+
+    # source: https://gis.stackexchange.com/a/166421/30899
+    geom_area = transform(
+        partial(
+            pyproj.transform,
+            pyproj.Proj(init='EPSG:4326'),
+            pyproj.Proj(
+                proj='aea',
+                lat1=geom.bounds[1],
+                lat2=geom.bounds[3])),
+        geom)
+
+    # return area in ha
+    return geom_area.area / 10000.
 
 
 def process_tile(tile_list, aoi, max_z):
@@ -88,6 +129,13 @@ def build_tile_lists(geom, max_z, is_debug):
     # build within and intersect lists
     within_list, intersect_list = process_tile([bounding_tile], geom, max_z)
     print '{} tiles in within_list, {} in intersect'.format(len(within_list), len(intersect_list))
+
+    # add half of the intersect tiles to the within_list
+    # assuming that split tiles will be split evenly, so a good approximation
+    # would be adding every other tile to the within_list
+    split_one, intersect_list = intersect_list[::2], intersect_list[1::2]
+
+    within_list.extend(split_one)
 
     if is_debug:
         write_tiles_to_geojson(within_list, 'within.geojson')

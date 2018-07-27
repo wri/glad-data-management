@@ -56,12 +56,12 @@ def select_intersected_tiles(cursor):
 
 def select_within_tiles(cursor):
 
-    sql = ('SELECT alert_date, sum(alert_count) '
-           'FROM tile_summary_stats '
+    sql = ('SELECT alert_text '
+           'FROM tile_summary_stats_json '
            'INNER JOIN tiles_aoi '
-           'WHERE tile_summary_stats.x = tiles_aoi.x AND tile_summary_stats.y = tiles_aoi.y '
-           'AND tile_summary_stats.z = tiles_aoi.z '
-           'GROUP BY alert_date')
+           'WHERE tile_summary_stats_json.x = tiles_aoi.x AND tile_summary_stats_json.y = tiles_aoi.y '
+           'AND tile_summary_stats_json.z = tiles_aoi.z '
+           'GROUP BY alert_text')
 
     cursor.execute(sql)
     rows = cursor.fetchall()
