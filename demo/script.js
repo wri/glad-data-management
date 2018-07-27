@@ -22,6 +22,11 @@ function init() {
     });
     map.addLayer(osm);
 
+    var glad = L.tileLayer('http://staging-api.globalforestwatch.org/v1/true-color-tiles/glad/{z}/{x}/{y}', {
+	       maxZoom:19
+	   })
+     map.addLayer(glad);
+
     // create an empty feature group for our user-drawn AOIs + add to map
     var editableLayers = new L.FeatureGroup();
     map.addLayer(editableLayers);
@@ -72,6 +77,20 @@ function init() {
 
     });
 
+    // function to count download glad points
+    window.downloadPoints = function() {
+        console.log('calling GFW API')
+
+        // grab the polygon as GeoJSON from the map
+        var geojson = editableLayers.toGeoJSON()
+        console.log(geojson)
+
+            // call the GLAD API to get a count of alerts based on
+            // our AOI, min/max date, and confidence filter
+	    var url = 'http://localhost:5000/glad-alerts/download'
+            callAPI(url, geojson)
+    }
+
     // function to count the GLAD alerts for a user-drawn polygon
     window.countFiresInAOI = function() {
         console.log('calling GFW API')
@@ -82,7 +101,8 @@ function init() {
 
             // call the GLAD API to get a count of alerts based on
             // our AOI, min/max date, and confidence filter
-            fireAnalysis(geojson, function(fireResp) {
+	    var url = 'http://localhost:5000/glad-alerts'
+            callAPI(url, geojson, function(fireResp) {
                 //var fireResults = fireResp.data.attributes.value
 		console.log(fireResp)
 		alert(JSON.stringify(fireResp))
@@ -92,7 +112,8 @@ function init() {
     // build the popup for the polygon
     var buildPopupHTML = function() {
         var html = 'GLAD Alerts by AOI<br><hr>'
-        html += '<button name="button" onclick="countFiresInAOI()" >Run analysis</button>'
+        html += '<button name="button" onclick="countFiresInAOI()" >Run analysis</button><br>'
+        html += '<button name="button" onclick="downloadPoints()" >Download points</button>'
 
         return html
     }
@@ -103,9 +124,7 @@ function init() {
 // send the GeoJSON of our polygon to the GFW Geostore
 // we'll use the Geostore ID that's returned to pass
 // our AOI directly to the GLAD API
-function fireAnalysis(geojson, callback) {
-
-    url = 'http://localhost:5000/glad-alerts'
+function callAPI(url, geojson, callback) {
 
     var http = new XMLHttpRequest();
     var params = JSON.stringify({
@@ -118,10 +137,27 @@ function fireAnalysis(geojson, callback) {
 
     http.onreadystatechange = function() { //Call a function when the state changes.
         if (http.readyState == 4 && http.status == 200) {
+		console.log("IN READY STATE")
+		console.log(http)
+
+          if (http.responseURL.indexOf('download') !== -1) {
+
+                // http://www.alexhadik.com/blog/2016/7/7/l8ztp8kr5lbctf5qns4l8t3646npqh
+                var blob = new Blob([http.response], {type: 'text/csv'});
+		var a = document.createElement("a");
+		a.style = "display: none";
+		document.body.appendChild(a);
+		var url = window.URL.createObjectURL(blob);
+		a.href = url;
+		a.download = 'data.csv';
+		a.click();
+		window.URL.revokeObjectURL(url);
+
+	} else {
             callback(JSON.parse(http.responseText));
+   	  }
+
         }
     }
     http.send(params);
 }
-
-
