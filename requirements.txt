@@ -2,7 +2,7 @@ numpy==1.11.0
 Fiona==1.7.1
 pyproj==1.9.5.1
 requests==2.14.2
-vector_tile_base==1.0
+git+https://github.com/mapbox/vector-tile-base
 Shapely==1.5.17
 rasterio==0.36.0
 mercantile==1.0.4
