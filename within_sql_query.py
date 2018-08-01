@@ -42,7 +42,10 @@ def calc_stats(geojson, max_z=12, debug=False):
         # combine rows into one dictionary
         alert_date_dict = util.row_list_to_json(rows)
 
-        return alert_date_dict.items()[0]
+        if alert_date_dict:
+            return alert_date_dict.items()[0]
+        else:
+            return {}
 
     else:
         print 'geometry has >5% of area in intersecting tiles, trying lambda endpoint'

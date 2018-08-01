@@ -1,7 +1,9 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
+import requests
 
 app = Flask(__name__)
+app.url_map.strict_slashes = False
 CORS(app)
 
 # add the above directory for this example to work
@@ -11,7 +13,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # import the actual module to do the analysis
 from within_sql_query import calc_stats
-from point_download import download_points
 
 
 # set this so flask doesn't complain
@@ -32,15 +33,15 @@ def glad_alerts():
 @app.route('/glad-alerts/download', methods=['POST'])
 def glad_download():
 
-    geojson = request.get_json().get('geojson', None).get('features', None) if request.get_json() else None
+    posted_json = request.get_json()
 
-    def generate():
-        for row in download_points(geojson):
-            yield row + '\n'
+    # http://flask.pocoo.org/snippets/118/
+    url = 'https://3bkj4476d9.execute-api.us-east-1.amazonaws.com/dev/glad-alerts/download'
+    req = requests.post(url, json=posted_json, stream=True)
 
-    return Response(generate(), mimetype='text/csv')
-
+    return Response(stream_with_context(req.iter_content(chunk_size=1024)), content_type = req.headers['content-type'])
 
 
 if __name__ == '__main__':
     app.run()
+

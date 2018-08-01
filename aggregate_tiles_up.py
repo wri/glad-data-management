@@ -2,6 +2,7 @@ import argparse
 import datetime
 import sqlite3
 import zlib
+import json
 from collections import Counter
 import csv
 import multiprocessing as mp
@@ -37,17 +38,18 @@ def main():
 
     print 'writing results to output.csv'
 
+    # to view a small subset of these tiles on geojsonio, run:
+    # awk  -F',' 'BEGIN{OFS=",";} {print "[" $1,$2,$3 "]"; }' output.csv | grep -v 'x,y,z' | mercantile shapes | fio collect | geojsonio
     with open('output.csv', 'w') as dst:
         csv_writer = csv.writer(dst)
-        csv_writer.writerow(['x', 'y', 'z', 'alert_date', 'alert_count'])
+        csv_writer.writerow(['x', 'y', 'z', 'alert_date'])
 
         for row in results:
             tile_tuple, date_dict = row
             z, y, x = tile_tuple
 
-            for date_str, alert_count in date_dict.iteritems():
-                out_row = [z, y, x, date_str, alert_count]
-                csv_writer.writerow(out_row)
+            out_row = [z, y, x, json.dumps(date_dict)]
+	    csv_writer.writerow(out_row)
 
 
 def map_tile_to_parent(input_tile_list):
@@ -74,7 +76,6 @@ def map_tile_to_parent(input_tile_list):
         date_dict = {}
 
         for feat in vt.features:
-            #date_tuple = (feat.properties['year'], feat.properties['julian_day'])
             as_date = convert_jd(feat.properties['year'], feat.properties['julian_day'])
 
             # if we already have a GLAD alert for this date, add to our count
@@ -88,13 +89,28 @@ def map_tile_to_parent(input_tile_list):
         # http://bl.ocks.org/lennepkade/b6fe9e4862668b2d19fe26f6c2d7cbef
         xyz_y = ((1 << z) - y - 1)
 
-        # find the parent for our map function
-        parent = mercantile.parent(x, xyz_y, z)
+        # save the highest zoom level tile to our output list
+        output_list.append(((x, xyz_y, z), date_dict))
 
-        output_list.append(((parent.x, parent.y, parent.z), date_dict))
+        # aggregate this tile all the way up, saving all parents to our output list as well
+        output_list.extend(add_parent_tiles(x, xyz_y, z, date_dict))
 
     return output_list
     
+
+def add_parent_tiles(child_x, child_y, child_z, date_dict):
+
+    output_list = []
+
+    for i in range(child_z, 4, -1):
+        parent = mercantile.parent(child_x, child_y, child_z)
+
+        output_list.append(((parent.x, parent.y, parent.z), date_dict))
+
+        child_x, child_y, child_z = parent.x, parent.y, parent.z
+
+    return output_list
+
 
 def combine_alert_stats(item):
 
@@ -102,6 +118,8 @@ def combine_alert_stats(item):
     print mp.current_process().name, 'combining tile_id',  tile_id
 
     # https://stackoverflow.com/a/11290471/4355916
+    # 4 tiles contribute to each parent tile, so need to group them by tile_id
+    # and add date dictionaries
     return tile_id, sum((Counter(dict(x)) for x in dict_list), Counter())
 
 

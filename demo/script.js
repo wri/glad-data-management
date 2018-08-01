@@ -46,7 +46,7 @@ function init() {
                 }
             },
             circle: false,
-            rectangle: false,
+            rectangle: true,
             marker: false,
             polyline: false
         },
