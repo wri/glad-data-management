@@ -1,2 +1,11 @@
-git+https://github.com/mapbox/vector-tile-base
+numpy==1.11.0
+Fiona==1.7.1
+pyproj==1.9.5.1
+requests==2.14.2
+vector_tile_base==1.0
+Shapely==1.5.17
+rasterio==0.36.0
 mercantile==1.0.4
+boto3==1.7.67
+Flask==1.0.2
+flask_cors==3.0.6
