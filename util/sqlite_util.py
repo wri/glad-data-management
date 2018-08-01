@@ -54,20 +54,19 @@ def select_intersected_tiles(cursor):
 
     return rows
 
-def select_within_tiles(cursor):
 
-    sql = ('SELECT alert_text '
-           'FROM tile_summary_stats_json '
+def select_within_tiles(cursor, max_z):
+
+    sql = ('SELECT alert_date '
+           'FROM tile_summary_stats_z{0} '
            'INNER JOIN tiles_aoi '
-           'WHERE tile_summary_stats_json.x = tiles_aoi.x AND tile_summary_stats_json.y = tiles_aoi.y '
-           'AND tile_summary_stats_json.z = tiles_aoi.z '
-           'GROUP BY alert_text')
+           'WHERE tile_summary_stats_z{0}.x = tiles_aoi.x AND tile_summary_stats_z{0}.y = tiles_aoi.y '
+           'AND tile_summary_stats_z{0}.z = tiles_aoi.z '.format(max_z))
 
     cursor.execute(sql)
     rows = cursor.fetchall()
 
     return rows
-
 
 
 def connect(sqlite_db):
@@ -76,3 +75,4 @@ def connect(sqlite_db):
     cursor = conn.cursor()
 
     return conn, cursor
+

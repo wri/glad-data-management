@@ -133,9 +133,9 @@ def build_tile_lists(geom, max_z, is_debug):
     # add half of the intersect tiles to the within_list
     # assuming that split tiles will be split evenly, so a good approximation
     # would be adding every other tile to the within_list
-    split_one, intersect_list = intersect_list[::2], intersect_list[1::2]
+    #split_one, intersect_list = intersect_list[::2], intersect_list[1::2]
 
-    within_list.extend(split_one)
+    #within_list.extend(split_one)
 
     if is_debug:
         write_tiles_to_geojson(within_list, 'within.geojson')

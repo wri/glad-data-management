@@ -23,9 +23,11 @@ os.environ['FLASK_ENV'] = 'development'
 def glad_alerts():
 
     geojson = request.get_json().get('geojson', None).get('features', None) if request.get_json() else None
-    print geojson
 
-    resp = calc_stats(geojson)
+    try:
+        resp = calc_stats(geojson)
+    except ValueError, e:
+         resp = {'error': str(e)}
 
     return jsonify(resp)
 

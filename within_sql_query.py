@@ -6,7 +6,7 @@ import fiona
 import requests
 from shapely.geometry import shape
 
-from util import tile_geometry, sqlite_util, aoi_geom_intersect, util
+from util import tile_geometry, sqlite_util, aoi_geom_intersect, util, geom_to_db
 
 
 def calc_stats(geojson, max_z=12, debug=False):    
@@ -18,9 +18,13 @@ def calc_stats(geojson, max_z=12, debug=False):
     # use within list as well
     within_list, intersect_list = tile_geometry.build_tile_lists(geom, max_z, debug)
 
-    
     # connect to vector tiles / sqlite3 database
-    conn, cursor = sqlite_util.connect('data_no_geom_z11_12.mbtiles')
+    dbname = geom_to_db.get_db_name(geom)
+
+    if not dbname:
+        raise ValueError('geometry either too big (multiple regions) or not in a single GLAD region')
+        
+    conn, cursor = sqlite_util.connect(dbname)
 
     intersect_area = tile_geometry.est_area(intersect_list, max_z, debug)
     within_area = tile_geometry.est_area(within_list, max_z, debug)
@@ -37,13 +41,13 @@ def calc_stats(geojson, max_z=12, debug=False):
         sqlite_util.insert_intersect_table(cursor, within_list, False)
 
         # query the database for summarized results
-        rows = sqlite_util.select_within_tiles(cursor)
+        rows = sqlite_util.select_within_tiles(cursor, max_z)
 
         # combine rows into one dictionary
         alert_date_dict = util.row_list_to_json(rows)
 
         if alert_date_dict:
-            return alert_date_dict.items()[0]
+            return sum(alert_date_dict.values())
         else:
             return {}
 
