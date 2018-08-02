@@ -8,19 +8,21 @@ import csv
 import multiprocessing as mp
 
 import numpy as np
+import pandas as pd
 import mercantile
 import vector_tile_base
 
 from util import multiprocessing_mapreduce
 
 parser = argparse.ArgumentParser(description='POC script to aggregate high zooms to low')
-parser.add_argument('--mbtiles-db', '-m', help='the mbtiles database', required=True)
+parser.add_argument('mbtiles_db', help='the mbtiles database')
 args = parser.parse_args()
 
 
 def main():
 
     # query the sqlite database
+    print args
     conn = sqlite3.connect(args.mbtiles_db)
     cursor = conn.cursor()
 
@@ -36,20 +38,23 @@ def main():
     mapper = multiprocessing_mapreduce.SimpleMapReduce(map_tile_to_parent, combine_alert_stats, cpu_count)
     results = mapper(l)
 
-    print 'writing results to output.csv'
+    print 'writing results back to sqlite database'
 
-    # to view a small subset of these tiles on geojsonio, run:
+    # to view a small subset of these tiles on geojsonio, export table to CSV, then run:
     # awk  -F',' 'BEGIN{OFS=",";} {print "[" $1,$2,$3 "]"; }' output.csv | grep -v 'x,y,z' | mercantile shapes | fio collect | geojsonio
-    with open('output.csv', 'w') as dst:
-        csv_writer = csv.writer(dst)
-        csv_writer.writerow(['x', 'y', 'z', 'alert_date'])
+    row_list = []
 
-        for row in results:
-            tile_tuple, date_dict = row
-            z, y, x = tile_tuple
+    for row in results:
+        tile_tuple, date_dict = row
+        z, y, x = tile_tuple
 
-            out_row = [z, y, x, json.dumps(date_dict)]
-	    csv_writer.writerow(out_row)
+        out_row = [z, y, x, json.dumps(date_dict)]
+        row_list.append(out_row)
+
+    df = pd.DataFrame(row_list, columns=['x', 'y', 'z', 'alert_dict'])
+    df.set_index(['x', 'y', 'z'], inplace=True)
+
+    df.to_sql('tile_summary_stats_z12', conn, if_exists='replace')
 
 
 def map_tile_to_parent(input_tile_list):
@@ -77,13 +82,18 @@ def map_tile_to_parent(input_tile_list):
 
         for feat in vt.features:
             as_date = convert_jd(feat.properties['year'], feat.properties['julian_day'])
+            conf = feat.properties['confidence']
+
+            # aggregating by (date, conf) tuples
+            # can't serialize a tuples as a key, must be string instead
+            key = '{}::{}'.format(as_date, conf)
 
             # if we already have a GLAD alert for this date, add to our count
             # otherwise create a new entry in the dict
             try:
-                date_dict[as_date] += 1
+                date_dict[key] += 1
             except KeyError:
-                date_dict[as_date] = 1
+                date_dict[key] = 1
 
         # convert TMS y to XYZ y
         # http://bl.ocks.org/lennepkade/b6fe9e4862668b2d19fe26f6c2d7cbef
