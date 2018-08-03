@@ -25,8 +25,5 @@ def get_db_name(geom):
         return region_name + '.mbtiles'
 
     else:
-        return None
-            
-            
-
+        raise ValueError('geometry either too big (multiple regions) or not in a single GLAD region')
 

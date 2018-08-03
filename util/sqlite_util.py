@@ -1,7 +1,7 @@
 import sqlite3
 
 
-def insert_intersect_table(cursor, tile_list, tms=True):
+def insert_intersect_table(cursor, tile_dict, tms=True):
 
     create_aoi_tiles_table(cursor)
 
@@ -9,7 +9,7 @@ def insert_intersect_table(cursor, tile_list, tms=True):
 
     # tile_list is a bunch of tile objects
     # from the mercantile library
-    for tile in tile_list:
+    for tile, proportion_covered in tile_dict.iteritems():
 
         if tms:
             # need to convert each XYZ tile to TMS
@@ -17,12 +17,12 @@ def insert_intersect_table(cursor, tile_list, tms=True):
             # https://gist.github.com/tmcw/4954720
             tile.y = (2 ** tile.z) - tile.y - 1
 
-        row = [tile.x, tile.y, tile.z]
+        row = [tile.x, tile.y, tile.z, proportion_covered]
 
         # append to row list for batch insert later
         row_list.append(row)
 
-    cursor.executemany('INSERT INTO tiles_aoi values (?, ?, ?)', row_list)
+    cursor.executemany('INSERT INTO tiles_aoi values (?, ?, ?, ?)', row_list)
 
 
 def create_aoi_tiles_table(cursor):
@@ -34,34 +34,19 @@ def create_aoi_tiles_table(cursor):
                         'x INTEGER, '
                         'y INTEGER, '
                         'z INTEGER, '
+                        'proportion_covered REAL, '
                         'PRIMARY KEY (x, y, z)); ')
 
     cursor.execute(create_table_sql)
 
 
-def select_intersected_tiles(cursor):
+def select_within_tiles(cursor):
 
-    # query the vector tiles table (tiles)
-    # selecting those tiles that match x & y indexes with tiles_aoi
-
-    sql = ('SELECT tiles_aoi.x, tiles_aoi.y, tile_data '
-           'FROM tiles '
+    sql = ('SELECT alert_dict, proportion_covered '
+           'FROM tile_summary_stats_z12 '
            'INNER JOIN tiles_aoi '
-           'WHERE tiles.tile_row = tiles_aoi.y and tiles.tile_column = tiles_aoi.x;')
-
-    cursor.execute(sql)
-    rows = cursor.fetchall()
-
-    return rows
-
-
-def select_within_tiles(cursor, max_z):
-
-    sql = ('SELECT alert_date '
-           'FROM tile_summary_stats_z{0} '
-           'INNER JOIN tiles_aoi '
-           'WHERE tile_summary_stats_z{0}.x = tiles_aoi.x AND tile_summary_stats_z{0}.y = tiles_aoi.y '
-           'AND tile_summary_stats_z{0}.z = tiles_aoi.z '.format(max_z))
+           'WHERE tile_summary_stats_z12.x = tiles_aoi.x AND tile_summary_stats_z12.y = tiles_aoi.y '
+           'AND tile_summary_stats_z12.z = tiles_aoi.z ')
 
     cursor.execute(sql)
     rows = cursor.fetchall()

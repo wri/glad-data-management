@@ -2,46 +2,39 @@ import argparse
 import json
 import sqlite3
 
-import fiona
 import requests
+
+# NB: very (weirdly) important to import shapely before fion
+# https://github.com/Toblerity/Shapely/issues/553
 from shapely.geometry import shape
+import fiona
 
 from util import tile_geometry, sqlite_util, aoi_geom_intersect, util, geom_to_db
 
 
-def calc_stats(geojson, max_z=12, debug=False):    
+def calc_stats(geojson, debug=False):    
 
     geom = shape(geojson[0]['geometry'])
+    geom_area_ha = tile_geometry.calc_area(geom, proj='aea')
+    print geom_area_ha
 
-    # find within_list, intersect_list
-    # only concerned with intersect_list for this POC, but will ultimately
-    # use within list as well
-    within_list, intersect_list = tile_geometry.build_tile_lists(geom, max_z, debug)
+    # check if it's too big to send to raster analysis
+    # current cutoff is 10,000,000 ha, or about the size of Kentucky
+    if geom_area_ha > 10000000:
 
-    # connect to vector tiles / sqlite3 database
-    dbname = geom_to_db.get_db_name(geom)
+        # connect to vector tiles / sqlite3 database
+        dbname = geom_to_db.get_db_name(geom)
 
-    if not dbname:
-        raise ValueError('geometry either too big (multiple regions) or not in a single GLAD region')
-        
-    conn, cursor = sqlite_util.connect(dbname)
+        # find all tiles that intersect the aoi, calculating a proportion of overlap for each
+        tile_dict = tile_geometry.build_tile_dict(geom, debug)
 
-    intersect_area = tile_geometry.est_area(intersect_list, max_z, debug)
-    within_area = tile_geometry.est_area(within_list, max_z, debug)
-
-    area_ratio = intersect_area / (intersect_area + within_area)
-    print 'area ratio is {}'.format(area_ratio)
-
-    if area_ratio <= 0.05:
-
-        print 'Estimated tile intersect area is <5% of within area!\n ' \
+        conn, cursor = sqlite_util.connect(dbname)
 
         # insert intersect list into mbtiles database as tiles_aoi
-        # (this will be done in sqlite_util.py - remember to convert y --> tms_y)
-        sqlite_util.insert_intersect_table(cursor, within_list, False)
+        sqlite_util.insert_intersect_table(cursor, tile_dict, False)
 
         # query the database for summarized results
-        rows = sqlite_util.select_within_tiles(cursor, max_z)
+        rows = sqlite_util.select_within_tiles(cursor)
 
         # combine rows into one dictionary
         alert_date_dict = util.row_list_to_json(rows)
@@ -66,14 +59,13 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='POC vector tile aoi point-in-polygon')
     parser.add_argument('--polygon', '-p', help='the input AOI', required=True)
-    parser.add_argument('--max-z', '-z', type=int, help='the max z value of interest', required=True)
     parser.add_argument('--debug', dest='debug', action='store_true')
     args = parser.parse_args()
 
     # read in aoi
     src = fiona.open(args.polygon)
 
-    resp = calc_stats(src, args.max_z, args.debug)
+    resp = calc_stats(src, args.debug)
 
     print resp
 
