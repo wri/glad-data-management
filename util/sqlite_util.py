@@ -27,26 +27,25 @@ def insert_intersect_table(cursor, tile_dict, tms=True):
 
 def create_aoi_tiles_table(cursor):
 
-    # create or replace tiles_aoi table
-    cursor.execute('DROP TABLE IF EXISTS tiles_aoi')
-
-    create_table_sql = ('CREATE TABLE tiles_aoi ( '
+    # create temp table
+    create_table_sql = ('CREATE TEMPORARY TABLE tiles_aoi ( '
                         'x INTEGER, '
                         'y INTEGER, '
                         'z INTEGER, '
-                        'proportion_covered REAL, '
-                        'PRIMARY KEY (x, y, z)); ')
-
+                        'proportion_covered REAL) ')
     cursor.execute(create_table_sql)
+
+    # add index on x - trying to increase cardinality for easy searching
+    # previously had (x,y,z) as primary key - while true, it was very slow
+    cursor.execute('CREATE INDEX tiles_aoi_idx_x ON tiles_aoi(x)')
 
 
 def select_within_tiles(cursor):
 
-    sql = ('SELECT alert_dict, proportion_covered '
-           'FROM tile_summary_stats_z12 '
+    sql = ('SELECT 1, CAST(SUM(proportion_covered * alert_count) as integer)'
+           'FROM unpacked '
            'INNER JOIN tiles_aoi '
-           'WHERE tile_summary_stats_z12.x = tiles_aoi.x AND tile_summary_stats_z12.y = tiles_aoi.y '
-           'AND tile_summary_stats_z12.z = tiles_aoi.z ')
+           'WHERE unpacked.x = tiles_aoi.x AND unpacked.y = tiles_aoi.y AND unpacked.z = tiles_aoi.z ')
 
     cursor.execute(sql)
     rows = cursor.fetchall()
@@ -54,9 +53,9 @@ def select_within_tiles(cursor):
     return rows
 
 
-def connect(sqlite_db):
+def connect():
 
-    conn = sqlite3.connect(sqlite_db)
+    conn = sqlite3.connect('all.db')
     cursor = conn.cursor()
 
     return conn, cursor

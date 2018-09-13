@@ -6,10 +6,10 @@ import requests
 
 # NB: very (weirdly) important to import shapely before fion
 # https://github.com/Toblerity/Shapely/issues/553
-from shapely.geometry import shape
+from shapely.geometry import shape, Polygon
 import fiona
 
-from util import tile_geometry, sqlite_util, aoi_geom_intersect, util, geom_to_db
+from util import tile_geometry, sqlite_util, aoi_geom_intersect, util 
 
 
 def calc_stats(geojson, debug=False):    
@@ -22,15 +22,14 @@ def calc_stats(geojson, debug=False):
     # current cutoff is 10,000,000 ha, or about the size of Kentucky
     if geom_area_ha > 10000000:
 
-        # connect to vector tiles / sqlite3 database
-        dbname = geom_to_db.get_db_name(geom)
+        # simplify geom if it's this large - looking for speed instead of accuracy
+        geom = Polygon(geom.simplify(0.05).buffer(0).exterior)
 
         # find all tiles that intersect the aoi, calculating a proportion of overlap for each
         tile_dict = tile_geometry.build_tile_dict(geom, debug)
 
-        conn, cursor = sqlite_util.connect(dbname)
-
         # insert intersect list into mbtiles database as tiles_aoi
+        conn, cursor = sqlite_util.connect()
         sqlite_util.insert_intersect_table(cursor, tile_dict, False)
 
         # query the database for summarized results

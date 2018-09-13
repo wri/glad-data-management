@@ -6,14 +6,6 @@ import argparse
 import pandas as pd
 
 
-parser = argparse.ArgumentParser(description='Update pre-calculated tile stats with new data')
-parser.add_argument('--current-db', '-c', help='the current DB', required=True)
-parser.add_argument('--new-db', '-n', help='the DB with updated data', required=True)
-parser.add_argument('--years', '-y', nargs='+', help='the years to replace in the current DB', required=True)
-
-args = parser.parse_args()
-
-
 def db_to_df(db):
 
     if not os.path.exists(db):
@@ -39,6 +31,13 @@ def db_to_df(db):
 
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description='Update pre-calculated tile stats with new data')
+    parser.add_argument('--current-db', '-c', help='the current DB', required=True)
+    parser.add_argument('--new-db', '-n', help='the DB with updated data', required=True)
+    parser.add_argument('--years', '-y', nargs='+', help='the years to replace in the current DB', required=True)
+    
+    args = parser.parse_args()
 
     current_conn, current_df = db_to_df(args.current_db)
     _, new_df = db_to_df(args.new_db)
