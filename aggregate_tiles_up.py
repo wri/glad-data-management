@@ -15,7 +15,8 @@ import vector_tile_base
 from util import multiprocessing_mapreduce
 
 parser = argparse.ArgumentParser(description='POC script to aggregate high zooms to low')
-parser.add_argument('mbtiles_db', help='the mbtiles database')
+parser.add_argument('--mbtiles_db', '-m', help='the mbtiles database', required=True)
+parser.add_argument('--stats-db', '-s', help='the stats database to save aggregate tile info', required=True)
 args = parser.parse_args()
 
 
@@ -23,13 +24,13 @@ def main():
 
     # query the sqlite database
     print args
-    conn = sqlite3.connect(args.mbtiles_db)
-    cursor = conn.cursor()
+    mb_conn = sqlite3.connect(args.mbtiles_db)
+    mb_cursor = mb_conn.cursor()
 
     print 'starting sql read'
     sql = 'SELECT zoom_level as z, tile_row as y, tile_column as x FROM tiles' 
-    cursor.execute(sql)
-    rows = np.array(cursor.fetchall())
+    mb_cursor.execute(sql)
+    rows = np.array(mb_cursor.fetchall())
 
     # divide into equal chunks based on number of processors
     cpu_count = mp.cpu_count() - 2
@@ -46,21 +47,25 @@ def main():
 
     for row in results:
         tile_tuple, date_dict = row
-        z, y, x = tile_tuple
+        x, y, z = tile_tuple
 
-        out_row = [z, y, x, json.dumps(date_dict)]
-        row_list.append(out_row)
+        for date_conf_key, alert_count in date_dict.iteritems():
+            date_str, conf_str = date_conf_key.split('::')
+            out_row = [x, y, z, alert_count, date_str, int(conf_str)]
 
-    df = pd.DataFrame(row_list, columns=['x', 'y', 'z', 'alert_dict'])
-    df.set_index(['x', 'y', 'z'], inplace=True)
+            row_list.append(out_row)
 
-    df.to_sql('tile_summary_stats_z12', conn, if_exists='replace')
+    cols = ['x', 'y', 'z', 'alert_count', 'alert_date', 'confidence']
+    df = pd.DataFrame(row_list, columns=cols)
+
+    stats_conn = sqlite3.connect(args.stats_db)
+    df.to_sql('tile_alert_stats', stats_conn, if_exists='append', index=False)
 
 
 def map_tile_to_parent(input_tile_list):
 
-    conn = sqlite3.connect(args.mbtiles_db)
-    cursor = conn.cursor()
+    mb_conn = sqlite3.connect(args.mbtiles_db)
+    mb_cursor = mb_conn.cursor()
 
     output_list = []
 
@@ -70,9 +75,9 @@ def map_tile_to_parent(input_tile_list):
         z, y, x = input_tile
 
         sql = 'SELECT tile_data FROM tiles WHERE zoom_level = {} AND tile_row = {} and tile_column = {}'.format(z, y, x)
-        cursor.execute(sql)
+        mb_cursor.execute(sql)
 
-        tile_data = [r[0] for r in cursor.fetchall()][0]
+        tile_data = [r[0] for r in mb_cursor.fetchall()][0]
 
         # and decode the associated GLAD point data as well
         decompressed = zlib.decompress(str(tile_data), zlib.MAX_WBITS|16)
