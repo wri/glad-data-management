@@ -14,7 +14,11 @@ def main():
     if adm_level not in ['iso', 'adm1', 'adm2']:
         raise ValueError('second arg must be one of iso, adm1 or adm2')
 
+    # initial output from hadoop doesn't have headers
+    cols = None
+
     if adm_level == 'iso': 
+        cols = ['long', 'lat', 'confidence', 'year', 'julian_day', 'country_iso', 'state_id', 'dist_id', 'confidence_text']
         out_dir = os.path.join('iso')
         group_col = 'country_iso'
 
@@ -31,7 +35,10 @@ def main():
     if not os.path.exists(out_dir):
         mkdir_p(out_dir)
     
-    df = pd.read_csv(sys.argv[1])
+    if cols:
+        df = pd.read_csv(sys.argv[1], header=None, names=cols)
+    else:
+        df = pd.read_csv(sys.argv[1])
     
     for i, g in df.groupby(group_col):
         print i
