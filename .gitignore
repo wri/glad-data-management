@@ -1,4 +1,4 @@
-*.mbtiles
+*.mbtiles*
 *.pyc
 .envrc
 .DS_Store
