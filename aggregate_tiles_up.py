@@ -2,9 +2,7 @@ import argparse
 import datetime
 import sqlite3
 import zlib
-import json
 from collections import Counter
-import csv
 import multiprocessing as mp
 
 import numpy as np
