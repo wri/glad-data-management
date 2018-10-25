@@ -4,6 +4,7 @@ import argparse
 import time
 import sqlite3
 import datetime
+import shutil
 
 import boto3
 
@@ -27,15 +28,15 @@ def main():
         cmd += ['--staging']
 
     cwd = os.path.join(root_dir, 'mapnik-forest-change-tiles')
-    #subprocess.check_call(cmd, cwd=cwd)
+    subprocess.check_call(cmd, cwd=cwd)
     
     # clear cloudfront cache so that our new tiles are visible
     client = boto3.client('cloudfront')
     cloudfront_config = {'DistributionId': 'E3363DM0PQ56GN', 
                          'InvalidationBatch': {'CallerReference': str(time.time()),
                                                'Paths': {'Items': ['/glad_prod/tiles/*'], 'Quantity': 1}}}
-    
-    #client.create_invalidation(**cloudfront_config)
+   
+    client.create_invalidation(**cloudfront_config)
     
     # then write GLAD data to point and upload to s3
     cmd = ['python', 'processing/utilities/weekly_updates.py', '-l', 'glad', '-r'] + args.region + ['-y'] + args.years
@@ -129,13 +130,21 @@ def main():
     subprocess.check_call(cmd, shell=True)
     
     # copy this data up to S3
-    cmd = ['aws', 's3', 'cp', '--recursive']
+    base_cmd = ['aws', 's3', 'cp', '--recursive']
     base_dir = 's3://gfw2-data/alerts-tsv/glad-download/'
 
-    for adm_level in ['iso', 'adm1', 'adm2']:
-        cmd += ['{}/'.format(adm_level), '{}{}/'.format(base_dir, adm_level)]
-        subprocess.check_call(cmd)
+    adm_list = ['iso', 'adm1', 'adm2']
+    for adm_level in adm_list:
+        cmd = base_cmd + ['{}/'.format(adm_level), '{}{}/'.format(base_dir, adm_level)]
+        #subprocess.check_call(cmd)
 
+    # clean up
+    file_list = [x for x in os.listdir('.') if os.path.splitext(x)[1] in ['.csv', '.mbtiles']]
+    for f in file_list:
+        os.remove(f)
+
+    for d in adm_list:
+        shutil.rmtree(d)
 
     # future work:
     # redeploy with jenkins
@@ -145,16 +154,17 @@ def main():
 def get_current_hadoop_output():
 
     today = datetime.datetime.today()
+    yesterday = (today + datetime.timedelta(days=1))
 
     # Given that this often runs overnight, datestamp may be today or "tomorrow"
     # compared to when the script started
     if check_s3(today):
         date_str = today.strftime('%Y%m%d')
 
-    else:
-        date_str = (today + datetime.timedelta(days=1)).strftime('%Y%m%d')
+    elif check_s3(yesterday):
+        date_str = yesterday.strftime('%Y%m%d')
 
-    if not check_s3(date_str):
+    else:
         raise ValueError('Hadoop output not found on S3')
 
     return r's3://gfw2-data/alerts-tsv/temp/output-glad-summary-{}/part-'.format(date_str)
@@ -177,8 +187,13 @@ def wait_for_hadoop(process_handle):
     
         else:
             raise ValueError('Hadoop process errored with code {}'.format(poll))
+
+        time.sleep(60)
+
     
+    # if it hasn't finished, kill it and then raise an error
     if not hadoop_process_done:
+        process_handle.kill()
         raise ValueError('Hadoop process took longer than 2 hours to finish')
 
 
@@ -196,3 +211,4 @@ def check_s3(date_val):
 
 if __name__ == '__main__':
     main()
+
