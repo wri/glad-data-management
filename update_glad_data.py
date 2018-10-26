@@ -16,7 +16,8 @@ parser.add_argument('--years', '-y', nargs='+', help='list of years to process',
 parser.add_argument('--staging', dest='staging', action='store_true')
 args = parser.parse_args()
 
-root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+glad_update_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(glad_update_dir)
 
 
 def main():
@@ -59,10 +60,11 @@ def main():
     
     # download our stats.db to update the z / x / y / date / count database table
     cmd = ['aws', 's3', 'cp', 's3://palm-risk-poc/data/mvt/stats.db', '.']
-    subprocess.check_call(cmd)
+    subprocess.check_call(cmd, cwd=glad_update_dir)
     
     # delete old data
-    conn = sqlite3.connect('stats.db')
+    stats_db = os.path.join(glad_update_dir, 'stats.db')
+    conn = sqlite3.connect(stats_db)
     cursor = conn.cursor()
     
     # NB: need to update this when we get 2019 data
@@ -80,16 +82,16 @@ def main():
         # this was just created from the raster-vector-to-tsv process
         src_csv = 's3://gfw2-data/alerts-tsv/{}/{}'.format(glad_folder, csv_name)
         cmd = ['aws', 's3', 'cp', src_csv, '.']
-        subprocess.check_call(cmd)
+        subprocess.check_call(cmd, cwd=glad_update_dir)
     
         # call tippecanoe to convert to mbtiles
-        mbtile_db = '{}.mbtiles'.format(region)
+        mbtile_db = os.path.join(glad_update_dir, '{}.mbtiles'.format(region))
         cmd = ['tippecanoe', '-o', mbtile_db, '-z12', '-Z12', '-b', '0', csv_name]
-        subprocess.check_call(cmd)
+        subprocess.check_call(cmd, cwd=glad_update_dir)
         
         # unpack those vector tiles to our z / x / y / date / alert_count format
-        cmd = ['python', 'aggregate_tiles_up.py', '-m', mbtile_db, '-s', 'stats.db']
-        subprocess.check_call(cmd)
+        cmd = ['python', 'aggregate_tiles_up.py', '-m', mbtile_db, '-s', stats_db]
+        subprocess.check_call(cmd, cwd=glad_update_dir)
         
     
     # now that we've added in our new tile data, rebuild the index
@@ -107,7 +109,7 @@ def main():
     
     # copy back up to S3
     cmd = ['aws', 's3', 'cp', 'stats.db', 's3://palm-risk-poc/data/mvt/stats.db']
-    subprocess.check_call(cmd)
+    subprocess.check_call(cmd, cwd=glad_update_dir)
     
     # now we need to wait until the hadoop / country pages process has finished
     # this process writes a giant CSV of all GLAD alerts by iso/adm1/adm2 to S3
@@ -116,18 +118,18 @@ def main():
     hadoop_s3_path = get_current_hadoop_output()
     hadoop_output_csv = 'hadoop_output.csv'
     cmd = ['aws', 's3', 'cp', hadoop_s3_path, hadoop_output_csv]
-    subprocess.check_call(cmd)
+    subprocess.check_call(cmd, cwd=glad_update_dir)
 
     # now that we have that data locally, create our iso/adm1/adm2 CSVs
     cmd = ['python', 'split_glad.py', hadoop_output_csv, 'iso']
-    subprocess.check_call(cmd)
+    subprocess.check_call(cmd, cwd=glad_update_dir)
 
     # now call the iso --> adm1 and adm1 --> adm2 using parallel processing
     cmd = 'for i in iso/*; do echo python split_glad.py $i adm1; done | parallel --jobs 35'
-    subprocess.check_call(cmd, shell=True)
+    subprocess.check_call(cmd, shell=True, cwd=glad_update_dir)
 
     cmd = 'for i in adm1/*/*; do echo python split_glad.py $i adm2; done | parallel --jobs 35'
-    subprocess.check_call(cmd, shell=True)
+    subprocess.check_call(cmd, shell=True, cwd=glad_update_dir)
     
     # copy this data up to S3
     base_cmd = ['aws', 's3', 'cp', '--recursive']
@@ -136,15 +138,15 @@ def main():
     adm_list = ['iso', 'adm1', 'adm2']
     for adm_level in adm_list:
         cmd = base_cmd + ['{}/'.format(adm_level), '{}{}/'.format(base_dir, adm_level)]
-        #subprocess.check_call(cmd)
+        subprocess.check_call(cmd, cwd=glad_update_dir)
 
     # clean up
     file_list = [x for x in os.listdir('.') if os.path.splitext(x)[1] in ['.csv', '.mbtiles']]
     for f in file_list:
-        os.remove(f)
+        os.remove(os.path.join(glad_update_dir, f))
 
     for d in adm_list:
-        shutil.rmtree(d)
+        shutil.rmtree(os.path.join(glad_update_dir, d))
 
     # future work:
     # redeploy with jenkins
