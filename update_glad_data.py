@@ -52,11 +52,14 @@ def main():
     cmd = ['python', 'update_country_stats.py', '-d', 'umd_landsat_alerts', '-e', 'prod']
     cwd = '/home/ubuntu/gfw-country-pages-analysis-2'
     hadoop_background_process = subprocess.Popen(cmd, cwd=cwd)
-    
+
     # while we're waiting for that to finish
     # we can update our z/x/y tile stats
     if args.years != ['2018']:
         raise ValueError('Need to build out multiple year handling for this process- not done yet')
+
+    # clean up temp files before we start downloading and writing locally
+    clean_up_temp_files(glad_update_dir)
     
     # download our stats.db to update the z / x / y / date / count database table
     cmd = ['aws', 's3', 'cp', 's3://palm-risk-poc/data/mvt/stats.db', '.']
@@ -140,17 +143,25 @@ def main():
         cmd = base_cmd + ['{}/'.format(adm_level), '{}{}/'.format(base_dir, adm_level)]
         subprocess.check_call(cmd, cwd=glad_update_dir)
 
+    clean_up_temp_files(glad_update_dir)
+
+    # future work:
+    # redeploy with jenkins
+    # check /latest to make sure data has updated, then hit webhook!
+
+
+def clean_up_temp_files(glad_update_dir):
+
     # clean up
     file_list = [x for x in os.listdir('.') if os.path.splitext(x)[1] in ['.csv', '.mbtiles']]
     for f in file_list:
         os.remove(os.path.join(glad_update_dir, f))
 
-    for d in adm_list:
-        shutil.rmtree(os.path.join(glad_update_dir, d))
-
-    # future work:
-    # redeploy with jenkins
-    # check /latest to make sure data has updated, then hit webhook!
+    for d in ['iso', 'adm1', 'adm2']:
+        try:
+            shutil.rmtree(os.path.join(glad_update_dir, d))
+        except OSError:
+            pass
 
 
 def get_current_hadoop_output():
