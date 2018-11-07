@@ -45,7 +45,7 @@ def main():
     if args.staging:
         cmd += ['--staging']
 
-    cwd = os.path.join(root_dir, 'raster-vector-to-tsv')
+    cwd = os.path.join(root_dir, 'raster-to-tsv')
     subprocess.check_call(cmd, cwd=cwd)
            
     # kick off hadoop process to attach iso/adm1/adm2 to each GLAD point
@@ -82,7 +82,7 @@ def main():
         csv_name = '{}_{}.csv'.format(region, args.years[0])
     
         # download the source CSV locally
-        # this was just created from the raster-vector-to-tsv process
+        # this was just created from the raster-to-tsv process
         src_csv = 's3://gfw2-data/alerts-tsv/{}/{}'.format(glad_folder, csv_name)
         cmd = ['aws', 's3', 'cp', src_csv, '.']
         subprocess.check_call(cmd, cwd=glad_update_dir)
@@ -96,7 +96,6 @@ def main():
         cmd = ['python', 'aggregate_tiles_up.py', '-m', mbtile_db, '-s', stats_db]
         subprocess.check_call(cmd, cwd=glad_update_dir)
         
-    
     # now that we've added in our new tile data, rebuild the index
     cursor.execute('REINDEX tile_alert_stats;')
     
@@ -153,7 +152,7 @@ def main():
 def clean_up_temp_files(glad_update_dir):
 
     # clean up
-    file_list = [x for x in os.listdir('.') if os.path.splitext(x)[1] in ['.csv', '.mbtiles']]
+    file_list = [x for x in os.listdir(glad_update_dir) if os.path.splitext(x)[1] in ['.csv', '.mbtiles']]
     for f in file_list:
         os.remove(os.path.join(glad_update_dir, f))
 
